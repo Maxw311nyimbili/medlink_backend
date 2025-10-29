@@ -26,5 +26,5 @@ RUN mkdir -p /app/uploads
 # Expose FastAPI port
 EXPOSE 8000
 
-# Run FastAPI app
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+# Run FastAPI app (Railway provides PORT env var)
+CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
