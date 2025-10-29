@@ -1,0 +1,64 @@
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyc
+*.pyo
+*.pyd
+.Python
+.pytest_cache/
+.mypy_cache/
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+
+# Environment files (will be set via Railway)
+.env
+.env.local
+.env.production
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Testing
+tests/
+test_*.py
+*_test.py
+
+# Documentation
+*.md
+README.md
+docs/
+
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Docker
+docker-compose.yml
+docker-compose.override.yml
+Dockerfile.dev
+
+# Uploads (generated at runtime)
+uploads/
+
+# Logs
+*.log
+
+# Database files (not needed in image)
+*.db
+*.sqlite
+
+# Misc
+.dockerignore

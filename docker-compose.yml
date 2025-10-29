@@ -1,0 +1,49 @@
+services:
+  weaviate:
+    image: semitechnologies/weaviate:1.23.7
+    container_name: medlink_weaviate
+    ports:
+      - "8080:8080"
+    environment:
+      QUERY_DEFAULTS_LIMIT: 25
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
+      PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
+      DEFAULT_VECTORIZER_MODULE: 'text2vec-transformers'
+      ENABLE_MODULES: 'text2vec-transformers'
+      TRANSFORMERS_INFERENCE_API: 'http://t2v-transformers:8080'
+      CLUSTER_HOSTNAME: 'node1'
+    volumes:
+      - weaviate_data:/var/lib/weaviate
+    depends_on:
+      - t2v-transformers
+
+  t2v-transformers:
+    image: semitechnologies/transformers-inference:sentence-transformers-all-MiniLM-L6-v2
+    container_name: medlink_transformers
+    environment:
+      ENABLE_CUDA: '0'
+
+  backend:
+    build: .
+    container_name: medlink_backend
+    command: uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
+    ports:
+      - "${PORT:-8000}:${PORT:-8000}"
+    volumes:
+      - .:/app
+      - ./firebase-key.json:/app/firebase-key.json:ro
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - SECRET_KEY=${SECRET_KEY}
+      - WEAVIATE_URL=http://weaviate:8080
+      - FIREBASE_CREDENTIALS_PATH=./firebase-key.json
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-*}
+      - PORT=${PORT:-8000}
+    depends_on:
+      - weaviate
+    env_file:
+      - .env
+
+volumes:
+  weaviate_data:
