@@ -1,4 +1,21 @@
 services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: medlink_postgres
+    environment:
+      POSTGRES_USER: medlink
+      POSTGRES_PASSWORD: medlink123
+      POSTGRES_DB: medlink_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U medlink"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   weaviate:
     image: semitechnologies/weaviate:1.23.7
     container_name: medlink_weaviate
@@ -26,24 +43,27 @@ services:
   backend:
     build: .
     container_name: medlink_backend
-    command: uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     ports:
-      - "${PORT:-8000}:${PORT:-8000}"
+      - "8000:8000"
     volumes:
       - .:/app
       - ./firebase-key.json:/app/firebase-key.json:ro
     environment:
-      - DATABASE_URL=${DATABASE_URL}
+      - DATABASE_URL=postgresql://medlink:medlink123@postgres:5432/medlink_db
       - GROQ_API_KEY=${GROQ_API_KEY}
       - SECRET_KEY=${SECRET_KEY}
       - WEAVIATE_URL=http://weaviate:8080
       - FIREBASE_CREDENTIALS_PATH=./firebase-key.json
-      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-*}
-      - PORT=${PORT:-8000}
+      - ALLOWED_ORIGINS=*
     depends_on:
-      - weaviate
+      postgres:
+        condition: service_healthy
+      weaviate:
+        condition: service_started
     env_file:
       - .env
 
 volumes:
+  postgres_data:
   weaviate_data:

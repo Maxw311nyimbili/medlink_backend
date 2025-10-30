@@ -1,7 +1,7 @@
 # Environment settings
-
 from pydantic_settings import BaseSettings
 from functools import lru_cache
+from typing import Optional
 
 
 class Settings(BaseSettings):
@@ -14,20 +14,22 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
 
     # Firebase
-    FIREBASE_CREDENTIALS_PATH: str
+    FIREBASE_CREDENTIALS_PATH: str = "./firebase-key.json"
+    FIREBASE_KEY_BASE64: Optional[str] = None
 
     # Weaviate
     WEAVIATE_URL: str = "http://weaviate:8080"
 
-    # Ollama
-    OLLAMA_URL: str = "http://host.docker.internal:11434"
+    # Groq (changed from Ollama)
+    GROQ_API_KEY: Optional[str] = None
 
     # CORS
-    ALLOWED_ORIGINS: str = "http://localhost:3000"
+    ALLOWED_ORIGINS: str = "*"
 
     class Config:
         env_file = ".env"
         case_sensitive = True
+        extra = "ignore"  # Allow extra env vars without error
 
 
 @lru_cache()
