@@ -1,7 +1,6 @@
-# /forum/* endpoints (Day 2)
-
 """
 Forum API endpoints for posts and comments with offline sync support.
+FIXED: All endpoints now have author_name fallback to email or "Unknown"
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
@@ -15,6 +14,20 @@ from app.db.models import ForumPost, ForumComment, User, SyncQueue
 from app.services.sync_service import process_sync_batch
 
 router = APIRouter(prefix="/forum", tags=["forum"])
+
+
+# ============================================================================
+# HELPER FUNCTIONS
+# ============================================================================
+
+def get_author_name(user: Optional[User]) -> str:
+    """
+    Get author name with fallback chain.
+    display_name → email → "Unknown"
+    """
+    if not user:
+        return "Unknown"
+    return user.display_name or user.email or "Unknown"
 
 
 # ============================================================================
@@ -104,6 +117,8 @@ def create_post(
     Create a new forum post.
 
     Supports offline sync via client_id.
+
+    FIXED: Always returns author_name (with fallback to email or "Unknown")
     """
     # Check if client_id already exists (duplicate sync)
     if request.client_id:
@@ -113,9 +128,10 @@ def create_post(
         if existing:
             # Already synced, return existing
             author = db.query(User).filter(User.id == existing.user_id).first()
+            author_name = get_author_name(author)
             return PostResponse(
                 **existing.__dict__,
-                author_name=author.display_name if author else None,
+                author_name=author_name,
                 comment_count=len(existing.comments)
             )
 
@@ -135,10 +151,11 @@ def create_post(
     db.refresh(post)
 
     author = db.query(User).filter(User.id == user_id).first()
+    author_name = get_author_name(author)
 
     return PostResponse(
         **post.__dict__,
-        author_name=author.display_name if author else None,
+        author_name=author_name,
         comment_count=0
     )
 
@@ -153,6 +170,8 @@ def get_posts(
     """
     Get forum posts with optional category filter.
     Returns posts sorted by most recent first.
+
+    FIXED: All posts include author_name with fallback
     """
     query = db.query(ForumPost).filter(ForumPost.is_deleted == False)
 
@@ -164,12 +183,12 @@ def get_posts(
     # Get authors
     user_ids = [p.user_id for p in posts]
     users = db.query(User).filter(User.id.in_(user_ids)).all()
-    user_map = {u.id: u.display_name for u in users}
+    user_map = {u.id: get_author_name(u) for u in users}
 
     return [
         PostResponse(
             **post.__dict__,
-            author_name=user_map.get(post.user_id),
+            author_name=user_map.get(post.user_id, "Unknown"),
             comment_count=len([c for c in post.comments if not c.is_deleted])
         )
         for post in posts
@@ -181,7 +200,11 @@ def get_post(
         post_id: int,
         db: Session = Depends(get_db)
 ):
-    """Get a single post by ID"""
+    """
+    Get a single post by ID
+
+    FIXED: Always returns author_name with fallback
+    """
     post = db.query(ForumPost).filter(
         and_(ForumPost.id == post_id, ForumPost.is_deleted == False)
     ).first()
@@ -190,10 +213,11 @@ def get_post(
         raise HTTPException(status_code=404, detail="Post not found")
 
     author = db.query(User).filter(User.id == post.user_id).first()
+    author_name = get_author_name(author)
 
     return PostResponse(
         **post.__dict__,
-        author_name=author.display_name if author else None,
+        author_name=author_name,
         comment_count=len([c for c in post.comments if not c.is_deleted])
     )
 
@@ -205,7 +229,11 @@ def update_post(
         db: Session = Depends(get_db),
         user_id: str = Depends(get_current_user)
 ):
-    """Update a post (only by author)"""
+    """
+    Update a post (only by author)
+
+    FIXED: Always returns author_name with fallback
+    """
     post = db.query(ForumPost).filter(ForumPost.id == post_id).first()
 
     if not post:
@@ -230,10 +258,11 @@ def update_post(
     db.refresh(post)
 
     author = db.query(User).filter(User.id == user_id).first()
+    author_name = get_author_name(author)
 
     return PostResponse(
         **post.__dict__,
-        author_name=author.display_name if author else None,
+        author_name=author_name,
         comment_count=len(post.comments)
     )
 
@@ -272,7 +301,11 @@ def create_comment(
         db: Session = Depends(get_db),
         user_id: str = Depends(get_current_user)
 ):
-    """Add a comment to a post"""
+    """
+    Add a comment to a post
+
+    FIXED: Always returns author_name with fallback
+    """
     # Verify post exists
     post = db.query(ForumPost).filter(
         and_(ForumPost.id == post_id, ForumPost.is_deleted == False)
@@ -288,9 +321,10 @@ def create_comment(
         ).first()
         if existing:
             author = db.query(User).filter(User.id == existing.user_id).first()
+            author_name = get_author_name(author)
             return CommentResponse(
                 **existing.__dict__,
-                author_name=author.display_name if author else None
+                author_name=author_name
             )
 
     comment = ForumComment(
@@ -307,10 +341,11 @@ def create_comment(
     db.refresh(comment)
 
     author = db.query(User).filter(User.id == user_id).first()
+    author_name = get_author_name(author)
 
     return CommentResponse(
         **comment.__dict__,
-        author_name=author.display_name if author else None
+        author_name=author_name
     )
 
 
@@ -319,7 +354,11 @@ def get_comments(
         post_id: int,
         db: Session = Depends(get_db)
 ):
-    """Get all comments for a post"""
+    """
+    Get all comments for a post
+
+    FIXED: All comments include author_name with fallback
+    """
     comments = db.query(ForumComment).filter(
         and_(
             ForumComment.post_id == post_id,
@@ -330,12 +369,12 @@ def get_comments(
     # Get authors
     user_ids = [c.user_id for c in comments]
     users = db.query(User).filter(User.id.in_(user_ids)).all()
-    user_map = {u.id: u.display_name for u in users}
+    user_map = {u.id: get_author_name(u) for u in users}
 
     return [
         CommentResponse(
             **comment.__dict__,
-            author_name=user_map.get(comment.user_id)
+            author_name=user_map.get(comment.user_id, "Unknown")
         )
         for comment in comments
     ]
